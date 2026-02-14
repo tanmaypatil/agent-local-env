@@ -1,24 +1,67 @@
-# Agent to validate a local development enviornment
+# Agent to validate a local development environment
 
-## Objective 
-Agent to check whether local development enviornment services are up 
+## Objective
+Agent to check whether local development environment services are up.
 
-## Pre-requisite 
-* A simple web-app with a login page and dashboard page . when user logins to the login page , it will successfully navigate to dashboard page .
-  Web app will have a supporting backend app using python/flask 
-  User interface will be purely html 
+## Project Structure
+```
+agent-local-env/
+├── .env                              # ANTHROPIC_API_KEY (not checked in)
+├── .venv/                            # Python 3.11 virtual environment
+├── requirements.txt                  # All dependencies
+├── webapp/
+│   ├── app.py                        # Flask app (port 9777)
+│   └── templates/
+│       ├── login.html
+│       └── dashboard.html
+├── mcp_server/
+│   └── login_verify_server.py        # MCP server (stdio transport)
+└── agent/
+    └── agent.py                      # Claude AI agent (Agent SDK)
+```
 
-  url : http://localhost:9777/login.html 
-  username : Tanmay
-  password : Tanmay
+## Components
 
-# A Login verification MCP server
-  We will design a login verification mcp server based on python .
-  Server will attempt to login using url , username , password given above.
-  mcp server would be written in python 
+### 1. Flask Web Application (`webapp/`)
+- Login page at `http://localhost:9777/login.html`
+- Dashboard page at `/dashboard` (session-protected)
+- Root `/` redirects to login
+- Credentials: username `Tanmay`, password `Tanmay`
+- Session-based auth using Flask's built-in `session`
 
+### 2. Login Verification MCP Server (`mcp_server/`)
+- Exposes `verify_login(url, username, password)` tool via stdio transport
+- Uses `requests.Session()` to GET login page, POST credentials, verify dashboard
+- Built with `mcp` Python SDK (`FastMCP`)
 
-## AI Agent 
-Create Claude agent to verify the application is up 
-Use Claude Agent SDK in python to create the agent.
+### 3. Claude AI Agent (`agent/`)
+- Uses `claude-agent-sdk` to orchestrate verification
+- Spawns the MCP server automatically as a subprocess
+- Loads API key from `.env` via `python-dotenv`
+- Streams Claude's reasoning and tool results to stdout
+
+## How to Run
+
+### Prerequisites
+- Python 3.11+ (system `python3` is 3.9, use `.venv`)
+- `ANTHROPIC_API_KEY` set in `.env`
+
+### Steps
+```bash
+# Install dependencies (one-time)
+.venv/bin/pip install -r requirements.txt
+
+# Terminal 1: Start the web app
+.venv/bin/python3 webapp/app.py
+
+# Terminal 2: Run the agent (must NOT be inside a Claude Code session)
+cd /Users/tanmaypatil/agent-local-env
+.venv/bin/python3 agent/agent.py
+```
+
+### Known Constraints
+- The agent cannot run from inside a Claude Code terminal (nested session detection). Use a separate terminal or `unset CLAUDECODE` first.
+
+## Documentation
+Update claude.md at the end of every code changes.
 
