@@ -31,7 +31,7 @@ agent-local-env/
 
 ### 2. Login Verification MCP Server (`mcp_server/`)
 - Exposes `verify_login(url, username, password)` tool via stdio transport
-- Uses `requests.Session()` to GET login page, POST credentials, verify dashboard
+- Uses Playwright (headless Chromium) to fill login form, click submit, and verify dashboard
 - Built with `mcp` Python SDK (`FastMCP`)
 
 ### 3. Claude AI Agent (`agent/`)
@@ -50,6 +50,7 @@ agent-local-env/
 ```bash
 # Install dependencies (one-time)
 .venv/bin/pip install -r requirements.txt
+.venv/bin/playwright install chromium
 
 # Terminal 1: Start the web app
 .venv/bin/python3 webapp/app.py
