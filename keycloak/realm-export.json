@@ -2,6 +2,7 @@
   "id": "local-dev",
   "realm": "local-dev",
   "enabled": true,
+  "sslRequired": "none",
   "clients": [
     {
       "clientId": "flask-app",
@@ -15,6 +16,9 @@
   "users": [
     {
       "username": "Tanmay",
+      "firstName": "Tanmay",
+      "lastName": "Patil",
+      "email": "tanmay@localhost",
       "enabled": true,
       "emailVerified": true,
       "credentials": [

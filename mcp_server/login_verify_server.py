@@ -125,6 +125,10 @@ def _ensure_keycloak_user(
     create_url = f"{base_url}admin/realms/{realm}/users"
     user_payload = json.dumps({
         "username": username,
+        "firstName": username,
+        "lastName": "User",
+        "email": f"{username.lower()}@localhost",
+        "emailVerified": True,
         "enabled": True,
         "credentials": [{
             "type": "password",
@@ -142,6 +146,30 @@ def _ensure_keycloak_user(
         return f"FAIL: Could not create user (HTTP {e.code}): {body}"
     except Exception as e:
         return f"FAIL: Could not create user: {e}"
+
+
+def _disable_master_ssl(container_name: str = "agent-local-env-keycloak-1") -> str:
+    """Disable SSL requirement on master realm via kcadm.sh inside the container."""
+    try:
+        # Configure kcadm credentials
+        subprocess.run(
+            ["docker", "exec", container_name, "/opt/keycloak/bin/kcadm.sh",
+             "config", "credentials", "--server", "http://localhost:8080",
+             "--realm", "master", "--user", "admin", "--password", "admin"],
+            capture_output=True, text=True, timeout=10,
+        )
+        # Set sslRequired=NONE on master
+        result = subprocess.run(
+            ["docker", "exec", container_name, "/opt/keycloak/bin/kcadm.sh",
+             "update", "realms/master", "-s", "sslRequired=NONE"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            log("[disable_master_ssl] Disabled SSL on master realm")
+            return "SUCCESS"
+        return f"FAIL: {result.stderr}"
+    except Exception as e:
+        return f"FAIL: {e}"
 
 
 def _is_docker_running() -> bool:
@@ -231,12 +259,13 @@ async def start_keycloak(port: int = 8080) -> str:
     Returns:
         A message indicating whether Keycloak was started or was already running.
     """
-    health_url = f"http://localhost:{port}/health/ready"
+    health_url = f"http://localhost:{port}/realms/master"
 
     # Check if already running
     try:
         urllib.request.urlopen(health_url, timeout=3)
         log(f"[start_keycloak] Keycloak is already running on port {port}")
+        _disable_master_ssl()
         user_result = _ensure_keycloak_user(f"http://localhost:{port}/")
         log(f"[start_keycloak] User provisioning: {user_result}")
         return f"Keycloak is already running on port {port}. {user_result}"
@@ -273,6 +302,9 @@ async def start_keycloak(port: int = 8080) -> str:
         try:
             urllib.request.urlopen(health_url, timeout=2)
             log(f"[start_keycloak] Keycloak is now healthy on port {port}")
+            # Disable SSL on master realm so admin API works over HTTP
+            ssl_result = _disable_master_ssl()
+            log(f"[start_keycloak] Master SSL disable: {ssl_result}")
             # Ensure the test user exists
             user_result = _ensure_keycloak_user(f"http://localhost:{port}/")
             log(f"[start_keycloak] User provisioning: {user_result}")
