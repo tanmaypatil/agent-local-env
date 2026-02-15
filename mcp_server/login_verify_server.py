@@ -1,9 +1,12 @@
 import asyncio
+import json
 import os
 import platform
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.parse
 import urllib.request
 
 from playwright.async_api import async_playwright
@@ -71,6 +74,74 @@ async def start_webapp(port: int = 9777) -> str:
             continue
 
     return f"FAIL: Started process but app not responding on port {port} after 15 seconds"
+
+
+def _ensure_keycloak_user(
+    base_url: str,
+    realm: str = "local-dev",
+    username: str = "Tanmay",
+    password: str = "Tanmay",
+    admin_user: str = "admin",
+    admin_password: str = "admin",
+) -> str:
+    """Create the test user in Keycloak if it doesn't already exist.
+
+    Uses the Keycloak Admin REST API (no extra dependencies needed).
+    Returns a status message.
+    """
+    # Step 1: Get admin token
+    token_url = f"{base_url}realms/master/protocol/openid-connect/token"
+    token_data = urllib.parse.urlencode({
+        "grant_type": "password",
+        "client_id": "admin-cli",
+        "username": admin_user,
+        "password": admin_password,
+    }).encode()
+    try:
+        req = urllib.request.Request(token_url, data=token_data)
+        resp = urllib.request.urlopen(req, timeout=10)
+        token = json.loads(resp.read())["access_token"]
+    except Exception as e:
+        return f"FAIL: Could not get admin token: {e}"
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    # Step 2: Check if user already exists
+    users_url = f"{base_url}admin/realms/{realm}/users?username={username}&exact=true"
+    try:
+        req = urllib.request.Request(users_url, headers=headers)
+        resp = urllib.request.urlopen(req, timeout=10)
+        users = json.loads(resp.read())
+        if users:
+            log(f"[ensure_user] User '{username}' already exists in realm '{realm}'")
+            return f"User '{username}' already exists"
+    except Exception as e:
+        return f"FAIL: Could not check users: {e}"
+
+    # Step 3: Create user with password
+    create_url = f"{base_url}admin/realms/{realm}/users"
+    user_payload = json.dumps({
+        "username": username,
+        "enabled": True,
+        "credentials": [{
+            "type": "password",
+            "value": password,
+            "temporary": False,
+        }],
+    }).encode()
+    try:
+        req = urllib.request.Request(create_url, data=user_payload, headers=headers, method="POST")
+        urllib.request.urlopen(req, timeout=10)
+        log(f"[ensure_user] Created user '{username}' in realm '{realm}'")
+        return f"SUCCESS: Created user '{username}'"
+    except urllib.error.HTTPError as e:
+        body = e.read().decode() if e.fp else ""
+        return f"FAIL: Could not create user (HTTP {e.code}): {body}"
+    except Exception as e:
+        return f"FAIL: Could not create user: {e}"
 
 
 def _is_docker_running() -> bool:
@@ -166,7 +237,9 @@ async def start_keycloak(port: int = 8080) -> str:
     try:
         urllib.request.urlopen(health_url, timeout=3)
         log(f"[start_keycloak] Keycloak is already running on port {port}")
-        return f"Keycloak is already running on port {port}"
+        user_result = _ensure_keycloak_user(f"http://localhost:{port}/")
+        log(f"[start_keycloak] User provisioning: {user_result}")
+        return f"Keycloak is already running on port {port}. {user_result}"
     except Exception:
         log(f"[start_keycloak] Keycloak is NOT running on port {port}. Starting it now...")
 
@@ -200,7 +273,10 @@ async def start_keycloak(port: int = 8080) -> str:
         try:
             urllib.request.urlopen(health_url, timeout=2)
             log(f"[start_keycloak] Keycloak is now healthy on port {port}")
-            return f"SUCCESS: Keycloak started and healthy on port {port}"
+            # Ensure the test user exists
+            user_result = _ensure_keycloak_user(f"http://localhost:{port}/")
+            log(f"[start_keycloak] User provisioning: {user_result}")
+            return f"SUCCESS: Keycloak started and healthy on port {port}. {user_result}"
         except Exception:
             if i % 10 == 9:
                 log(f"[start_keycloak] Still waiting... ({i + 1}s)")

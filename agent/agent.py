@@ -43,8 +43,10 @@ async def main():
         f"{claude_md_content}\n"
         "---\n\n"
         "Follow the Operational Workflow in CLAUDE.md. "
-        "If a service is not running, start it and then verify it works. "
-        "Report the final status of each check."
+        "Prefer using the MCP tools (start_docker, start_keycloak, start_webapp, "
+        "verify_login) as they already handle health checks and startup internally. "
+        "You may also use shell commands like curl or wget if needed for additional checks. "
+        "Report the final status of each step."
     )
 
     async for message in query(
