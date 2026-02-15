@@ -1,12 +1,18 @@
 import asyncio
 import os
 import subprocess
+import sys
 import urllib.request
 
 from playwright.async_api import async_playwright
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("login-verifier")
+
+
+def log(msg: str) -> None:
+    """Log to stderr so messages appear in the terminal without interfering with MCP stdio transport."""
+    print(msg, file=sys.stderr, flush=True)
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -28,9 +34,10 @@ async def start_webapp(port: int = 9777) -> str:
     # Check if already running
     try:
         urllib.request.urlopen(url, timeout=3)
+        log(f"[start_webapp] App is already running on port {port}")
         return f"App is already running on port {port}"
     except Exception:
-        pass
+        log(f"[start_webapp] Web app is NOT running on port {port}. Starting it now...")
 
     # Resolve paths
     venv_python = os.path.join(PROJECT_ROOT, ".venv", "bin", "python3")
@@ -42,6 +49,7 @@ async def start_webapp(port: int = 9777) -> str:
         return f"FAIL: webapp/app.py not found at {webapp_script}"
 
     # Spawn as a detached subprocess
+    log(f"[start_webapp] Spawning webapp process: {venv_python} {webapp_script}")
     subprocess.Popen(
         [venv_python, webapp_script],
         cwd=PROJECT_ROOT,
@@ -55,6 +63,7 @@ async def start_webapp(port: int = 9777) -> str:
         await asyncio.sleep(1)
         try:
             urllib.request.urlopen(url, timeout=2)
+            log(f"[start_webapp] Web app is now healthy on port {port}")
             return f"SUCCESS: Web app started and healthy on port {port}"
         except Exception:
             continue
