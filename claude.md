@@ -63,6 +63,15 @@ cd /Users/tanmaypatil/agent-local-env
 ### Known Constraints
 - The agent cannot run from inside a Claude Code terminal (nested session detection). Use a separate terminal or `unset CLAUDECODE` first.
 
+## Available MCP Tools
+- `start_webapp(port)` — Starts the Flask web app if it's not running. Waits until healthy.
+- `verify_login(url, username, password)` — Uses Playwright to test login flow in a headless browser.
+
+## Operational Workflow
+1. Check if the web app at http://localhost:9777 is running
+2. If not running, use `start_webapp` to start it
+3. Verify login works using `verify_login` with credentials from the Components section above
+
 ## Documentation
 Update claude.md at the end of every code changes.
 
