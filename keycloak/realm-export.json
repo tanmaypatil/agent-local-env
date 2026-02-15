@@ -1,0 +1,27 @@
+{
+  "realm": "local-dev",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "flask-app",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"]
+    }
+  ],
+  "users": [
+    {
+      "username": "Tanmay",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Tanmay",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

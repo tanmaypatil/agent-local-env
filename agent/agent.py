@@ -30,6 +30,8 @@ async def main():
         allowed_tools=[
             "mcp__login-verifier__verify_login",
             "mcp__login-verifier__start_webapp",
+            "mcp__login-verifier__start_keycloak",
+            "mcp__login-verifier__start_docker",
         ],
     )
 

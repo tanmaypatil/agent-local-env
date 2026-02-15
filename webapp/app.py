@@ -1,10 +1,32 @@
+import os
+
 from flask import Flask, render_template, request, redirect, session, url_for
+from keycloak import KeycloakOpenID
+from keycloak.exceptions import KeycloakAuthenticationError
 
 app = Flask(__name__)
 app.secret_key = "dev-secret-key-change-in-prod"
 
-VALID_USERNAME = "Tanmay"
-VALID_PASSWORD = "Tanmay"
+KEYCLOAK_SERVER_URL = os.environ.get("KEYCLOAK_SERVER_URL", "http://localhost:8080/")
+KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "local-dev")
+KEYCLOAK_CLIENT_ID = os.environ.get("KEYCLOAK_CLIENT_ID", "flask-app")
+
+keycloak_openid = KeycloakOpenID(
+    server_url=KEYCLOAK_SERVER_URL,
+    client_id=KEYCLOAK_CLIENT_ID,
+    realm_name=KEYCLOAK_REALM,
+)
+
+
+def authenticate(username: str, password: str) -> bool:
+    """Validate credentials against Keycloak using the direct access grant (password grant)."""
+    try:
+        keycloak_openid.token(username, password)
+        return True
+    except KeycloakAuthenticationError:
+        return False
+    except Exception:
+        return False
 
 
 @app.route("/")
@@ -22,7 +44,7 @@ def login():
     username = request.form.get("username", "")
     password = request.form.get("password", "")
 
-    if username == VALID_USERNAME and password == VALID_PASSWORD:
+    if authenticate(username, password):
         session["username"] = username
         return redirect(url_for("dashboard"))
 
