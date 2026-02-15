@@ -42,6 +42,11 @@ async def handle_tool_permission(
     )
 
 
+async def make_prompt(text: str):
+    """Wrap a string prompt as an AsyncIterable (required for can_use_tool streaming mode)."""
+    yield {"type": "user", "content": text}
+
+
 async def main():
     python_cmd = VENV_PYTHON if os.path.exists(VENV_PYTHON) else sys.executable
 
@@ -66,7 +71,7 @@ async def main():
         can_use_tool=handle_tool_permission,
     )
 
-    prompt = (
+    prompt_text = (
         "You are a local dev environment validator. "
         "Below is the project's CLAUDE.md with details about the environment, "
         "services, credentials, and available tools.\n\n"
@@ -81,7 +86,7 @@ async def main():
     )
 
     async with ClaudeSDKClient(options=options) as client:
-        await client.connect(prompt=prompt)
+        await client.connect(prompt=make_prompt(prompt_text))
 
         async for message in client.receive_messages():
             if isinstance(message, AssistantMessage):
