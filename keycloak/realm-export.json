@@ -1,4 +1,5 @@
 {
+  "id": "local-dev",
   "realm": "local-dev",
   "enabled": true,
   "clients": [
@@ -15,11 +16,13 @@
     {
       "username": "Tanmay",
       "enabled": true,
+      "emailVerified": true,
       "credentials": [
         {
           "type": "password",
-          "value": "Tanmay",
-          "temporary": false
+          "createdDate": 1708000000000,
+          "secretData": "{\"value\":\"NlSx6ET5hP8oN8mQAdzwUOdBaMjJTV7yZSUhos2lImY=\",\"salt\":\"dNHBrXSYi54Qh1DpJUEPgQ==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":27500,\"algorithm\":\"pbkdf2-sha256\",\"additionalParameters\":{}}"
         }
       ]
     }
