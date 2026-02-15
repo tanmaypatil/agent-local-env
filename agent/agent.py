@@ -3,7 +3,7 @@ import os
 import sys
 
 from dotenv import load_dotenv
-from claude_agent_sdk import ClaudeAgentOptions, AssistantMessage, ResultMessage, query
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, AssistantMessage, ResultMessage
 
 # Resolve paths relative to the project root (one level up from agent/)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,16 +49,18 @@ async def main():
         "Report the final status of each step."
     )
 
-    async for message in query(
-        prompt=prompt,
-        options=options,
-    ):
-        if isinstance(message, AssistantMessage):
-            for block in message.content:
-                if hasattr(block, "text"):
-                    print(block.text)
-        elif isinstance(message, ResultMessage) and message.subtype == "success":
-            print(message.result)
+    async with ClaudeSDKClient(options=options) as client:
+        await client.connect(prompt=prompt)
+
+        async for message in client.receive_messages():
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if hasattr(block, "text"):
+                        print(block.text)
+            elif isinstance(message, ResultMessage):
+                if message.subtype == "success":
+                    print(message.result)
+                break
 
 
 if __name__ == "__main__":
