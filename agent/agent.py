@@ -44,7 +44,12 @@ async def handle_tool_permission(
 
 async def make_prompt(text: str):
     """Wrap a string prompt as an AsyncIterable (required for can_use_tool streaming mode)."""
-    yield {"type": "user", "content": text}
+    yield {
+        "type": "user",
+        "session_id": "",
+        "message": {"role": "user", "content": text},
+        "parent_tool_use_id": None,
+    }
 
 
 async def main():
