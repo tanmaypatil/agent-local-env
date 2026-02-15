@@ -64,7 +64,6 @@ async def main():
             "mcp__login-verifier__start_docker",
         ],
         can_use_tool=handle_tool_permission,
-        permission_prompt_tool_name="stdio",
     )
 
     prompt = (
