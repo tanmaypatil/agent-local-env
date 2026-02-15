@@ -3,13 +3,43 @@ import os
 import sys
 
 from dotenv import load_dotenv
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, AssistantMessage, ResultMessage
+from claude_agent_sdk import (
+    ClaudeAgentOptions,
+    ClaudeSDKClient,
+    AssistantMessage,
+    ResultMessage,
+    PermissionResultAllow,
+    PermissionResultDeny,
+    ToolPermissionContext,
+)
 
 # Resolve paths relative to the project root (one level up from agent/)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 VENV_PYTHON = os.path.join(PROJECT_ROOT, ".venv", "bin", "python3")
 MCP_SERVER = os.path.join(PROJECT_ROOT, "mcp_server", "login_verify_server.py")
+
+
+async def handle_tool_permission(
+    tool_name: str,
+    tool_input: dict,
+    context: ToolPermissionContext,
+):
+    """Prompt the user to approve or deny tool usage."""
+    print(f"\n--- Tool approval requested ---")
+    print(f"  Tool:  {tool_name}")
+    if tool_name == "Bash":
+        print(f"  Command: {tool_input.get('command', '')}")
+    else:
+        print(f"  Input: {tool_input}")
+
+    answer = input("  Allow? [Y/n]: ").strip().lower()
+    if answer in ("", "y", "yes"):
+        return PermissionResultAllow(behavior="allow")
+    return PermissionResultDeny(
+        behavior="deny",
+        message="User denied the tool call",
+    )
 
 
 async def main():
@@ -33,6 +63,8 @@ async def main():
             "mcp__login-verifier__start_keycloak",
             "mcp__login-verifier__start_docker",
         ],
+        can_use_tool=handle_tool_permission,
+        permission_prompt_tool_name="stdio",
     )
 
     prompt = (
