@@ -318,6 +318,95 @@ async def start_keycloak(port: int = 8080) -> str:
 
 
 @mcp.tool()
+async def start_database(port: int = 5432) -> str:
+    """Start PostgreSQL via docker-compose if it is not already running.
+
+    Args:
+        port: The port PostgreSQL listens on (default 5432).
+
+    Returns:
+        A message indicating whether PostgreSQL was started or was already running.
+    """
+    # Check if already running by attempting a TCP connection
+    import socket
+    def _pg_ready():
+        try:
+            s = socket.create_connection(("localhost", port), timeout=2)
+            s.close()
+            return True
+        except Exception:
+            return False
+
+    if _pg_ready():
+        log(f"[start_database] PostgreSQL is already running on port {port}")
+        return f"PostgreSQL is already running on port {port}"
+
+    # Ensure Docker daemon is running first
+    if not _is_docker_running():
+        log("[start_database] Docker is not running, starting it first...")
+        docker_result = await start_docker()
+        if docker_result.startswith("FAIL"):
+            return f"FAIL: Cannot start PostgreSQL — {docker_result}"
+
+    # Start via docker-compose
+    compose_file = os.path.join(PROJECT_ROOT, "docker-compose.yml")
+    if not os.path.exists(compose_file):
+        return f"FAIL: docker-compose.yml not found at {compose_file}"
+
+    log("[start_database] Running docker-compose up -d postgres")
+    result = subprocess.run(
+        ["docker-compose", "up", "-d", "postgres"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        log(f"[start_database] docker-compose failed: {result.stderr}")
+        return f"FAIL: docker-compose up -d postgres failed: {result.stderr}"
+
+    # Poll until healthy (up to 30 seconds)
+    log("[start_database] Waiting for PostgreSQL to become ready...")
+    for i in range(30):
+        await asyncio.sleep(1)
+        if _pg_ready():
+            log(f"[start_database] PostgreSQL is now ready on port {port}")
+            return f"SUCCESS: PostgreSQL started and ready on port {port}"
+        if i % 10 == 9:
+            log(f"[start_database] Still waiting... ({i + 1}s)")
+
+    return f"FAIL: Started PostgreSQL container but not responding on port {port} after 30 seconds"
+
+
+@mcp.tool()
+async def verify_database(port: int = 5432) -> str:
+    """Verify that PostgreSQL is running and the accounts/payments tables exist with data.
+
+    Args:
+        port: The port PostgreSQL listens on (default 5432).
+
+    Returns:
+        A message with table row counts or an error.
+    """
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host="localhost", port=port,
+            dbname="localdev", user="localdev", password="localdev",
+            connect_timeout=5,
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT count(*) FROM accounts")
+        accounts_count = cur.fetchone()[0]
+        cur.execute("SELECT count(*) FROM payments")
+        payments_count = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return f"SUCCESS: Database is healthy. accounts={accounts_count} rows, payments={payments_count} rows."
+    except Exception as e:
+        return f"FAIL: Could not connect to PostgreSQL: {e}"
+
+
+@mcp.tool()
 async def verify_login(url: str, username: str, password: str) -> str:
     """Verify that a web application login page is reachable and credentials work.
 

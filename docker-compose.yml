@@ -15,3 +15,18 @@ services:
       - "8080:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: localdev
+      POSTGRES_PASSWORD: localdev
+      POSTGRES_DB: localdev
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

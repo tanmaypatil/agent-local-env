@@ -9,7 +9,9 @@ agent-local-env/
 ├── .env                              # ANTHROPIC_API_KEY (not checked in)
 ├── .venv/                            # Python 3.11 virtual environment
 ├── requirements.txt                  # All dependencies
-├── docker-compose.yml                # Keycloak (port 8080)
+├── docker-compose.yml                # Keycloak (port 8080) + PostgreSQL (port 5432)
+├── db/
+│   └── init.sql                      # Schema + seed data (accounts, payments)
 ├── keycloak/
 │   └── realm-export.json             # Pre-configured realm, client, test user
 ├── webapp/
@@ -33,7 +35,16 @@ agent-local-env/
 - Test user: `Tanmay` / `Tanmay` (with firstName, lastName, email — required by Keycloak 24 User Profile)
 - Command-line flags: `--hostname-strict=false --hostname-strict-https=false --http-enabled=true --spi-realm-default-ssl-required=none`
 
-### 2. Flask Web Application (`webapp/`)
+### 2. PostgreSQL Database (`docker-compose.yml`, `db/`)
+- Runs via Docker: `postgres:16`
+- Connection: `localhost:5432`, database `localdev`, user `localdev`, password `localdev`
+- Schema auto-initialized from `db/init.sql` on first start
+- Tables:
+  - `accounts` — id, name, account_type, created_at, status (active/inactive)
+  - `payments` — id, amount, currency, debit_account, credit_account, created_at
+- Data volume `pgdata` persists across restarts; use `docker-compose down -v` to reset
+
+### 3. Flask Web Application (`webapp/`)
 - Login page at `http://localhost:9777/login.html`
 - Dashboard page at `/dashboard` (session-protected)
 - Root `/` redirects to login
@@ -41,14 +52,16 @@ agent-local-env/
 - Keycloak connection configured via env vars: `KEYCLOAK_SERVER_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`
 - Session-based auth using Flask's built-in `session`
 
-### 3. Login Verification MCP Server (`mcp_server/`)
+### 4. Login Verification MCP Server (`mcp_server/`)
 - Exposes tools via stdio transport, built with `mcp` Python SDK (`FastMCP`)
 - `start_docker()` — platform-agnostic Docker daemon startup
 - `start_keycloak(port)` — docker-compose up, disables master SSL, provisions test user
+- `start_database(port)` — starts PostgreSQL via docker-compose, waits until ready
+- `verify_database(port)` — connects to PostgreSQL, verifies tables and row counts
 - `start_webapp(port)` — spawns Flask app as detached subprocess
 - `verify_login(url, username, password)` — Playwright headless browser login test
 
-### 4. Claude AI Agent (`agent/`)
+### 5. Claude AI Agent (`agent/`)
 - Uses `claude-agent-sdk` `ClaudeSDKClient` for interactive, bidirectional sessions
 - `can_use_tool` callback prompts user for Y/n approval on non-allowed tools
 - Prompt sent as `AsyncIterable` (required by `can_use_tool` streaming mode)
@@ -87,14 +100,18 @@ cd /Users/tanmaypatil/agent-local-env
 ## Available MCP Tools
 - `start_docker()` — Starts the Docker daemon if not running. Platform-agnostic: uses `open -a Docker` on macOS, `systemctl start docker` on Linux.
 - `start_keycloak(port)` — Starts Keycloak via docker-compose if it's not running. Automatically starts Docker first if needed. Disables SSL on master realm and ensures test user exists. Waits until healthy (up to 60s).
+- `start_database(port)` — Starts PostgreSQL via docker-compose if it's not running. Automatically starts Docker first if needed. Waits until ready (up to 30s).
+- `verify_database(port)` — Connects to PostgreSQL and verifies accounts/payments tables exist with data.
 - `start_webapp(port)` — Starts the Flask web app if it's not running. Waits until healthy.
 - `verify_login(url, username, password)` — Uses Playwright to test login flow in a headless browser.
 
 ## Operational Workflow
 1. Check if Docker is running; if not, use `start_docker` to start it (also called automatically by `start_keycloak`)
 2. Check if Keycloak at http://localhost:8080 is running; if not, use `start_keycloak` to start it
-3. Check if the web app at http://localhost:9777 is running; if not, use `start_webapp` to start it
-4. Verify login works using `verify_login` with credentials: username `Tanmay`, password `Tanmay`
+3. Check if PostgreSQL at localhost:5432 is running; if not, use `start_database` to start it
+4. Verify database is healthy using `verify_database`
+5. Check if the web app at http://localhost:9777 is running; if not, use `start_webapp` to start it
+6. Verify login works using `verify_login` with credentials: username `Tanmay`, password `Tanmay`
 
 ## Keycloak Gotchas (Learned)
 - **HTTPS required**: Keycloak 24 enforces SSL even in dev mode. Must set `sslRequired: "none"` in realm JSON AND disable it on the master realm via `kcadm.sh` after startup.
