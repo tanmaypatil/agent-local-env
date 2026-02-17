@@ -6,105 +6,42 @@
 ## System Overview
 
 ```mermaid
-graph TD
+graph TB
     User["User / Terminal"]
 
-    subgraph Agent["Agent Layer (agent/agent.py)"]
-        AgentPy["Claude AI Agent\nClaudeSDKClient\n(claude-agent-sdk)"]
+    subgraph Agent["Agent Layer"]
+        AgentPy["Claude AI Agent<br/>ClaudeSDKClient"]
     end
 
-    subgraph MCP["MCP Server (mcp_server/login_verify_server.py)"]
-        MCPServer["FastMCP Server\nlogin-verifier\n(stdio transport)"]
-        T1["start_docker()"]
-        T2["start_keycloak(port)"]
-        T3["start_database(port)"]
-        T4["verify_database(port)"]
-        T5["start_webapp(port)"]
-        T6["verify_login(url, username, password)"]
-        T7["create_and_verify_payment(url, username, password)"]
-        Playwright["Playwright\nHeadless Chromium"]
-        MCPServer --> T1
-        MCPServer --> T2
-        MCPServer --> T3
-        MCPServer --> T4
-        MCPServer --> T5
-        MCPServer --> T6
-        MCPServer --> T7
-        T6 --> Playwright
-        T7 --> Playwright
+    subgraph MCP["MCP Server — login-verifier (stdio)"]
+        direction LR
+        MCPTools["start_docker<br/>start_keycloak<br/>start_database<br/>verify_database<br/>start_webapp<br/>verify_login<br/>create_and_verify_payment"]
+        Playwright["Playwright<br/>Headless Chromium"]
     end
 
-    subgraph Docker["Docker Services (docker-compose.yml)"]
-        subgraph KC["Keycloak Container"]
-            Keycloak["Keycloak 24.0.3\ndev mode\nport 8080"]
-            RealmJSON["realm-export.json\nRealm: local-dev\nClient: flask-app\nUser: Tanmay/Tanmay"]
-        end
-        subgraph PG["PostgreSQL Container"]
-            Postgres["postgres:16\nport 5432\ndb: localdev"]
-            Volume[("pgdata volume")]
-            InitSQL["init.sql\naccounts table\npayments table\nseed data"]
-        end
+    subgraph Flask["Flask Web App :9777"]
+        AppPy["app.py + db.py"]
+        Routes["14 Routes incl.<br/>POST /payments/create"]
+        Templates["5 Jinja2 Templates"]
+        AppPy --- Routes
+        AppPy --- Templates
     end
 
-    subgraph Flask["Flask Web Application (webapp/app.py, port 9777)"]
-        AppPy["Flask App\nport 9777"]
-        DbPy["db.py\npsycopg2\nRealDictCursor"]
-        subgraph Routes["Routes"]
-            R1["GET / → redirect login"]
-            R2["GET /login.html"]
-            R3["POST /login"]
-            R4["GET /dashboard"]
-            R5["GET /upload\nPOST /upload/accounts\nPOST /upload/payments"]
-            R6["GET /accounts\nPOST /accounts/:id/update"]
-            R7["GET /payments\nPOST /payments/create\nPOST /payments/:id/update"]
-            R8["GET /api/accounts\nGET /api/payments"]
-        end
-        subgraph Templates["Jinja2 Templates"]
-            login.html
-            dashboard.html
-            upload.html
-            accounts.html
-            payments.html
-        end
+    subgraph Docker["Docker Services"]
+        Keycloak["Keycloak 24<br/>:8080<br/>Realm: local-dev"]
+        Postgres["PostgreSQL 16<br/>:5432<br/>DB: localdev"]
     end
 
-    %% User launches agent
-    User -->|"runs agent.py"| AgentPy
-
-    %% Agent spawns MCP server as subprocess (stdio)
-    AgentPy -->|"subprocess stdio\nmcp__login-verifier__*"| MCPServer
-
-    %% MCP tools control Docker via docker-compose CLI
-    T1 -->|"open -a Docker / systemctl"| DockerDaemon["Docker Daemon"]
-    T2 -->|"docker-compose up -d"| Keycloak
-    T3 -->|"docker-compose up -d postgres"| Postgres
-    T2 -->|"kcadm.sh + Admin REST API\ndisable SSL, create user"| Keycloak
-
-    %% MCP tool starts Flask as subprocess
-    T5 -->|"subprocess Popen\n.venv/bin/python3 webapp/app.py"| AppPy
-
-    %% MCP tool verifies DB directly
-    T4 -->|"psycopg2\nlocalhost:5432"| Postgres
-    T7 -->|"psycopg2\nlocalhost:5432"| Postgres
-
-    %% Playwright drives Flask UI
-    Playwright -->|"HTTP :9777\nGET /login.html\nPOST /login\nGET /payments\nPOST /payments/create"| AppPy
-
-    %% Flask authenticates via Keycloak (password grant)
-    AppPy -->|"KeycloakOpenID.token()\npassword grant\nHTTP :8080\nrealm: local-dev\nclient: flask-app"| Keycloak
-
-    %% Flask reads/writes DB
-    DbPy -->|"psycopg2\nlocalhost:5432\ndb: localdev"| Postgres
-
-    %% Flask internal
-    AppPy --> DbPy
-    AppPy --> Routes
-    AppPy --> Templates
-
-    %% DB internals
-    Postgres --- Volume
-    Postgres -.->|"init on first start"| InitSQL
-    Keycloak -.->|"import on first start"| RealmJSON
+    User -->|runs agent.py| AgentPy
+    AgentPy -->|subprocess stdio| MCPTools
+    MCPTools -->|docker-compose| Keycloak
+    MCPTools -->|docker-compose| Postgres
+    MCPTools -->|subprocess| AppPy
+    MCPTools --> Playwright
+    Playwright -->|HTTP :9777| AppPy
+    MCPTools -->|psycopg2| Postgres
+    AppPy -->|password grant :8080| Keycloak
+    AppPy -->|psycopg2 :5432| Postgres
 ```
 
 ## Component Details
