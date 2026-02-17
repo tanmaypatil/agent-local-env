@@ -1,7 +1,7 @@
 # Architecture Diagram
 
 > Auto-updated by architecture-diagram-updater agent
-> Last updated: 2026-02-17
+> Last updated: 2026-02-17 (port conflict detection added)
 
 ## System Overview
 
@@ -16,7 +16,9 @@ graph TB
     subgraph MCP["MCP Server — login-verifier (stdio)"]
         direction LR
         MCPTools["start_docker<br/>start_keycloak<br/>start_database<br/>verify_database<br/>start_webapp<br/>verify_login<br/>create_and_verify_payment"]
+        PortCheck["_check_port_conflict<br/>socket + psycopg2 probe<br/>lsof PID lookup"]
         Playwright["Playwright<br/>Headless Chromium"]
+        MCPTools -->|called by start_database<br/>and verify_database| PortCheck
     end
 
     subgraph Flask["Flask Web App :9777"]
@@ -54,6 +56,7 @@ graph TB
 | PostgreSQL | 5432 | postgres:16 | Relational DB; tables `accounts` and `payments`; volume `pgdata` for persistence |
 | Flask Web App | 9777 | Python, Flask, python-keycloak | Session-based web app; validates credentials via Keycloak password grant |
 | Playwright | — | Playwright (Chromium headless) | Browser automation used by `verify_login` and `create_and_verify_payment` MCP tools |
+| `_check_port_conflict` | — | Python (socket, psycopg2, lsof) | Helper called by `start_database` and `verify_database`; detects a local/system PostgreSQL occupying :5432 before Docker can bind it |
 
 ## Interaction Summary
 
@@ -62,8 +65,8 @@ graph TB
 1. **Agent starts**: User runs `agent/agent.py`. The agent spawns `mcp_server/login_verify_server.py` as a subprocess over stdio and connects via `ClaudeSDKClient`.
 2. **Docker**: Agent calls `start_docker` — opens Docker Desktop (macOS) or starts via systemctl (Linux).
 3. **Keycloak**: Agent calls `start_keycloak(8080)` — runs `docker-compose up -d`, waits up to 60s, then disables SSL on the master realm via `kcadm.sh` inside the container, and provisions the test user `Tanmay` via the Keycloak Admin REST API.
-4. **PostgreSQL**: Agent calls `start_database(5432)` — runs `docker-compose up -d postgres`, waits up to 30s. Schema and seed data are applied from `db/init.sql` on the first start.
-5. **Database verification**: Agent calls `verify_database(5432)` — connects with psycopg2 and checks row counts in `accounts` and `payments`.
+4. **PostgreSQL**: Agent calls `start_database(5432)` — first calls `_check_port_conflict(5432)` to detect whether a local/system PostgreSQL is occupying the port (socket probe + psycopg2 connection attempt + `lsof` PID lookup). If a conflict is found the tool returns a `FAIL` with remediation instructions immediately. Otherwise it runs `docker-compose up -d postgres` and waits up to 30s. Schema and seed data are applied from `db/init.sql` on the first start.
+5. **Database verification**: Agent calls `verify_database(5432)` — also calls `_check_port_conflict(5432)` first, then connects with psycopg2 and checks row counts in `accounts` and `payments`.
 6. **Flask app**: Agent calls `start_webapp(9777)` — spawns `webapp/app.py` as a detached subprocess via `.venv/bin/python3`, polls until healthy.
 7. **Login verification**: Agent calls `verify_login(url, "Tanmay", "Tanmay")` — Playwright logs in via the browser, verifies the dashboard is reached.
 8. **Payment creation and verification**: Agent calls `create_and_verify_payment(url, "Tanmay", "Tanmay")` — Playwright logs in, navigates to `/payments`, fills the create payment form (`POST /payments/create`, amount=50, USD, debit=1, credit=2), checks for a success message, then queries PostgreSQL directly to confirm the row was persisted.
@@ -116,8 +119,8 @@ payments
 |------|-----------|
 | `start_docker()` | Opens Docker daemon (macOS: `open -a Docker`; Linux: `systemctl`) |
 | `start_keycloak(port)` | `docker-compose up -d`; disables master realm SSL via `kcadm.sh`; provisions test user via Admin REST API |
-| `start_database(port)` | `docker-compose up -d postgres`; TCP-polls until ready |
-| `verify_database(port)` | psycopg2 connection; queries row counts for `accounts` and `payments` |
+| `start_database(port)` | `_check_port_conflict` first; `docker-compose up -d postgres`; TCP-polls until ready |
+| `verify_database(port)` | `_check_port_conflict` first; psycopg2 connection; queries row counts for `accounts` and `payments` |
 | `start_webapp(port)` | Spawns Flask as detached subprocess; HTTP-polls until healthy |
 | `verify_login(url, username, password)` | Playwright headless login; checks for "Welcome" in dashboard HTML |
 | `create_and_verify_payment(url, username, password)` | Playwright login + `POST /payments/create` form; DB verification via psycopg2 |

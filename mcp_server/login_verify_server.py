@@ -317,6 +317,60 @@ async def start_keycloak(port: int = 8080) -> str:
     return f"FAIL: Started Keycloak container but not responding on port {port} after 60 seconds"
 
 
+def _check_port_conflict(port: int) -> str | None:
+    """Check if a non-Docker PostgreSQL is occupying the port.
+
+    Attempts to connect with the expected localdev role. If the port is open
+    but the role doesn't exist, a local/system PostgreSQL is likely blocking
+    the Docker container. Returns a diagnostic message or None if no conflict.
+    """
+    import socket
+    try:
+        s = socket.create_connection(("localhost", port), timeout=2)
+        s.close()
+    except Exception:
+        return None  # port not open, no conflict
+
+    # Port is open — verify it's the right postgres
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host="localhost", port=port,
+            dbname="localdev", user="localdev", password="localdev",
+            connect_timeout=3,
+        )
+        conn.close()
+        return None  # connected fine, it's our Docker postgres
+    except Exception as e:
+        if "role" in str(e).lower() and "does not exist" in str(e).lower():
+            # Identify the conflicting process
+            try:
+                result = subprocess.run(
+                    ["lsof", "-i", f":{port}", "-sTCP:LISTEN", "-n", "-P"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                processes = [
+                    line for line in result.stdout.strip().split("\n")[1:]
+                    if "docker" not in line.lower()
+                ]
+                if processes:
+                    proc_info = processes[0].split()
+                    proc_name, proc_pid = proc_info[0], proc_info[1]
+                    return (
+                        f"PORT CONFLICT: A local PostgreSQL ({proc_name}, PID {proc_pid}) "
+                        f"is running on port {port} and blocking the Docker container. "
+                        f"Stop it with: brew services stop postgresql@16  OR  kill {proc_pid}"
+                    )
+            except Exception:
+                pass
+            return (
+                f"PORT CONFLICT: Port {port} is occupied by a PostgreSQL instance "
+                f"that does not have the 'localdev' role. A local/system PostgreSQL "
+                f"is likely blocking the Docker container. Stop it before proceeding."
+            )
+        return None  # some other connection error, not a port conflict
+
+
 @mcp.tool()
 async def start_database(port: int = 5432) -> str:
     """Start PostgreSQL via docker-compose if it is not already running.
@@ -327,6 +381,12 @@ async def start_database(port: int = 5432) -> str:
     Returns:
         A message indicating whether PostgreSQL was started or was already running.
     """
+    # Check for port conflict with a local PostgreSQL
+    conflict = _check_port_conflict(port)
+    if conflict:
+        log(f"[start_database] {conflict}")
+        return f"FAIL: {conflict}"
+
     # Check if already running by attempting a TCP connection
     import socket
     def _pg_ready():
@@ -381,12 +441,21 @@ async def start_database(port: int = 5432) -> str:
 async def verify_database(port: int = 5432) -> str:
     """Verify that PostgreSQL is running and the accounts/payments tables exist with data.
 
+    Also detects port conflicts where a local/system PostgreSQL is blocking
+    the Docker container.
+
     Args:
         port: The port PostgreSQL listens on (default 5432).
 
     Returns:
         A message with table row counts or an error.
     """
+    # Check for port conflict first
+    conflict = _check_port_conflict(port)
+    if conflict:
+        log(f"[verify_database] {conflict}")
+        return f"FAIL: {conflict}"
+
     try:
         import psycopg2
         conn = psycopg2.connect(

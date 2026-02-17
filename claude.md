@@ -112,12 +112,13 @@ cd /Users/tanmaypatil/agent-local-env
 ### Known Constraints
 - The agent cannot run from inside a Claude Code terminal (nested session detection). Use a separate terminal or `unset CLAUDECODE` first.
 - When recreating Keycloak, always use `docker-compose down -v` to remove volumes — Keycloak skips realm import if the realm already exists.
+- **PostgreSQL port conflict**: A local/system PostgreSQL (e.g. Homebrew `postgresql@16`) may occupy port 5432, shadowing the Docker container. The `start_database` and `verify_database` MCP tools detect this automatically and report the conflicting process. Fix: `brew services stop postgresql@16` or kill the local postgres process before running Docker.
 
 ## Available MCP Tools
 - `start_docker()` — Starts the Docker daemon if not running. Platform-agnostic: uses `open -a Docker` on macOS, `systemctl start docker` on Linux.
 - `start_keycloak(port)` — Starts Keycloak via docker-compose if it's not running. Automatically starts Docker first if needed. Disables SSL on master realm and ensures test user exists. Waits until healthy (up to 60s).
-- `start_database(port)` — Starts PostgreSQL via docker-compose if it's not running. Automatically starts Docker first if needed. Waits until ready (up to 30s).
-- `verify_database(port)` — Connects to PostgreSQL and verifies accounts/payments tables exist with data.
+- `start_database(port)` — Starts PostgreSQL via docker-compose if it's not running. Automatically starts Docker first if needed. Detects port conflicts with local/system PostgreSQL. Waits until ready (up to 30s).
+- `verify_database(port)` — Connects to PostgreSQL and verifies accounts/payments tables exist with data. Detects port conflicts with local/system PostgreSQL.
 - `start_webapp(port)` — Starts the Flask web app if it's not running. Waits until healthy.
 - `verify_login(url, username, password)` — Uses Playwright to test login flow in a headless browser.
 - `create_and_verify_payment(url, username, password)` — Logs in via Playwright, creates a payment (amount=50, USD, debit=1, credit=2) through the webapp form, and verifies the row exists in PostgreSQL.
