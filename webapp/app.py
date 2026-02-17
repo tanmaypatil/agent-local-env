@@ -174,6 +174,7 @@ def payments_page():
     min_amount = request.args.get("min_amount", "").strip()
     max_amount = request.args.get("max_amount", "").strip()
     updated = request.args.get("updated") == "1"
+    created = request.args.get("created") == "1"
     payments = search_payments(
         currency=currency or None,
         min_amount=min_amount or None,
@@ -186,7 +187,21 @@ def payments_page():
         search_min=min_amount,
         search_max=max_amount,
         updated=updated,
+        created=created,
     )
+
+
+@app.route("/payments/create", methods=["POST"])
+@require_login
+def create_payment():
+    row = {
+        "amount": request.form["amount"],
+        "currency": request.form["currency"],
+        "debit_account": request.form["debit_account"],
+        "credit_account": request.form["credit_account"],
+    }
+    insert_payments([row])
+    return redirect(url_for("payments_page", created="1"))
 
 
 @app.route("/payments/<int:payment_id>/update", methods=["POST"])

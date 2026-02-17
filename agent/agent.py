@@ -72,6 +72,9 @@ async def main():
             "mcp__login-verifier__start_webapp",
             "mcp__login-verifier__start_keycloak",
             "mcp__login-verifier__start_docker",
+            "mcp__login-verifier__start_database",
+            "mcp__login-verifier__verify_database",
+            "mcp__login-verifier__create_and_verify_payment",
         ],
         can_use_tool=handle_tool_permission,
     )
@@ -84,8 +87,9 @@ async def main():
         f"{claude_md_content}\n"
         "---\n\n"
         "Follow the Operational Workflow in CLAUDE.md. "
-        "Prefer using the MCP tools (start_docker, start_keycloak, start_webapp, "
-        "verify_login) as they already handle health checks and startup internally. "
+        "Prefer using the MCP tools (start_docker, start_keycloak, start_database, "
+        "verify_database, start_webapp, verify_login, create_and_verify_payment) "
+        "as they already handle health checks and startup internally. "
         "You may also use shell commands like curl or wget if needed for additional checks. "
         "Report the final status of each step."
     )

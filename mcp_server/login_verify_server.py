@@ -452,5 +452,95 @@ async def verify_login(url: str, username: str, password: str) -> str:
         return f"FAIL: Browser automation error: {e}"
 
 
+@mcp.tool()
+async def create_and_verify_payment(
+    url: str,
+    username: str,
+    password: str,
+) -> str:
+    """Create a payment through the webapp UI and verify it was persisted in the database.
+
+    Logs in via Playwright, navigates to the payments page, fills the create payment form
+    (amount=50.00, USD, debit_account=1, credit_account=2), submits it, checks for a
+    success message, and then verifies the payment row exists in PostgreSQL.
+
+    Args:
+        url: The login page URL (e.g. http://localhost:9777/login.html)
+        username: The username to log in with
+        password: The password to log in with
+
+    Returns:
+        A message indicating whether the payment was created and verified successfully.
+    """
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+
+            # Step 1: Log in
+            try:
+                await page.goto(url, timeout=5000)
+            except Exception as e:
+                await browser.close()
+                return f"FAIL: Could not connect to {url}. Is the server running? ({e})"
+
+            await page.fill('input[name="username"]', username)
+            await page.fill('input[name="password"]', password)
+            await page.click('button[type="submit"]')
+            await page.wait_for_load_state("networkidle")
+
+            if "Welcome" not in (await page.content()):
+                await browser.close()
+                return f"FAIL: Login did not reach dashboard. Page URL: {page.url}"
+
+            # Step 2: Navigate to payments page
+            base_url = url.rsplit("/", 1)[0]  # strip /login.html
+            await page.goto(f"{base_url}/payments", timeout=5000)
+            await page.wait_for_load_state("networkidle")
+
+            # Step 3: Fill the create payment form
+            await page.fill('form[action="/payments/create"] input[name="amount"]', "50.00")
+            await page.select_option('form[action="/payments/create"] select[name="currency"]', "USD")
+            await page.fill('form[action="/payments/create"] input[name="debit_account"]', "1")
+            await page.fill('form[action="/payments/create"] input[name="credit_account"]', "2")
+
+            # Step 4: Submit
+            await page.click('form[action="/payments/create"] button[type="submit"]')
+            await page.wait_for_load_state("networkidle")
+
+            # Step 5: Check for success message
+            content = await page.content()
+            await browser.close()
+
+            if "Payment created successfully" not in content:
+                return f"FAIL: Success message not found on page after form submission."
+
+    except Exception as e:
+        return f"FAIL: Browser automation error: {e}"
+
+    # Step 6: Verify in database
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host="localhost", port=5432,
+            dbname="localdev", user="localdev", password="localdev",
+            connect_timeout=5,
+        )
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id FROM payments WHERE amount = 50.00 AND currency = 'USD' "
+            "AND debit_account = 1 AND credit_account = 2 "
+            "ORDER BY id DESC LIMIT 1"
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row:
+            return f"SUCCESS: Payment created via UI and verified in database (payment id={row[0]})."
+        return "FAIL: Payment not found in database after form submission."
+    except Exception as e:
+        return f"FAIL: Database verification error: {e}"
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

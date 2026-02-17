@@ -60,7 +60,8 @@ agent-local-env/
 - **Database module** (`webapp/db.py`): Uses `psycopg2` with `RealDictCursor`, connection-per-request
 - **CSV Upload** (`/upload`): Upload accounts or payments via CSV, row-level error handling
 - **Accounts page** (`/accounts`): Search by name/type/status, inline edit with Post/Redirect/Get
-- **Payments page** (`/payments`): Search by currency/amount range, inline edit with PRG
+- **Payments page** (`/payments`): Search by currency/amount range, inline edit with PRG, create payment form
+- **Create payment** (`POST /payments/create`): Inserts a new payment, redirects to `/payments?created=1`
 - **REST API**: `/api/accounts` and `/api/payments` return JSON with search params
 - All new routes are session-protected via `@require_login`
 - Expected CSV formats:
@@ -119,6 +120,7 @@ cd /Users/tanmaypatil/agent-local-env
 - `verify_database(port)` — Connects to PostgreSQL and verifies accounts/payments tables exist with data.
 - `start_webapp(port)` — Starts the Flask web app if it's not running. Waits until healthy.
 - `verify_login(url, username, password)` — Uses Playwright to test login flow in a headless browser.
+- `create_and_verify_payment(url, username, password)` — Logs in via Playwright, creates a payment (amount=50, USD, debit=1, credit=2) through the webapp form, and verifies the row exists in PostgreSQL.
 
 ## Operational Workflow
 1. Check if Docker is running; if not, use `start_docker` to start it (also called automatically by `start_keycloak`)
@@ -127,6 +129,7 @@ cd /Users/tanmaypatil/agent-local-env
 4. Verify database is healthy using `verify_database`
 5. Check if the web app at http://localhost:9777 is running; if not, use `start_webapp` to start it
 6. Verify login works using `verify_login` with credentials: username `Tanmay`, password `Tanmay`
+7. Create and verify a payment using `create_and_verify_payment` — logs in, submits the create payment form, and checks the database
 
 ## Keycloak Gotchas (Learned)
 - **HTTPS required**: Keycloak 24 enforces SSL even in dev mode. Must set `sslRequired: "none"` in realm JSON AND disable it on the master realm via `kcadm.sh` after startup.
