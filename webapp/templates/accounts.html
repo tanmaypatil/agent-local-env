@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accounts - Local Dev</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh; background: #f0f4f8; color: #1e293b;
+    }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px; background: #ffffff; border-bottom: 1px solid #e2e8f0;
+    }
+    .topbar .brand { font-size: 16px; font-weight: 600; color: #1e293b; }
+    .topbar .brand span { color: #3b82f6; }
+    .topbar a { color: #3b82f6; text-decoration: none; font-size: 14px; font-weight: 500; }
+    .topbar a:hover { text-decoration: underline; }
+    .container { max-width: 960px; margin: 48px auto; padding: 0 24px; }
+    .card {
+      background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 32px; margin-bottom: 24px;
+    }
+    .card h2 { font-size: 20px; font-weight: 600; margin-bottom: 16px; color: #1e293b; }
+    .search-form { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 24px; }
+    .search-form .field { display: flex; flex-direction: column; }
+    .search-form label { font-size: 12px; font-weight: 500; color: #94a3b8; margin-bottom: 4px; }
+    .search-form input, .search-form select {
+      padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px;
+    }
+    .search-form button {
+      padding: 8px 20px; background: #3b82f6; color: #fff; border: none;
+      border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .search-form button:hover { background: #2563eb; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 12px; font-weight: 500; color: #94a3b8; text-transform: uppercase;
+      letter-spacing: 0.05em; padding: 8px 12px; border-bottom: 2px solid #e2e8f0; }
+    td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; vertical-align: middle; }
+    td input, td select {
+      padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 14px; width: 100%;
+    }
+    .btn-save {
+      padding: 5px 14px; background: #3b82f6; color: #fff; border: none;
+      border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .btn-save:hover { background: #2563eb; }
+    .alert { padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; }
+    .empty { text-align: center; padding: 32px; color: #94a3b8; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><span>&#9889;</span> Local Dev Environment</div>
+    <a href="/dashboard">&larr; Dashboard</a>
+  </div>
+
+  <div class="container">
+    {% if updated %}
+      <div class="alert alert-success">Account updated successfully.</div>
+    {% endif %}
+
+    <div class="card">
+      <h2>Accounts</h2>
+      <form class="search-form" method="GET" action="/accounts">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" name="name" value="{{ search_name or '' }}">
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select name="account_type">
+            <option value="">All</option>
+            <option value="savings" {{ 'selected' if search_type == 'savings' }}>savings</option>
+            <option value="current" {{ 'selected' if search_type == 'current' }}>current</option>
+            <option value="business" {{ 'selected' if search_type == 'business' }}>business</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select name="status">
+            <option value="">All</option>
+            <option value="active" {{ 'selected' if search_status == 'active' }}>active</option>
+            <option value="inactive" {{ 'selected' if search_status == 'inactive' }}>inactive</option>
+          </select>
+        </div>
+        <button type="submit">Search</button>
+      </form>
+
+      {% if accounts %}
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Type</th><th>Status</th><th>Created</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for a in accounts %}
+          <tr>
+            <form method="POST" action="/accounts/{{ a.id }}/update">
+              <input type="hidden" name="search_name" value="{{ search_name or '' }}">
+              <input type="hidden" name="search_type" value="{{ search_type or '' }}">
+              <input type="hidden" name="search_status" value="{{ search_status or '' }}">
+              <td>{{ a.id }}</td>
+              <td><input name="name" value="{{ a.name }}"></td>
+              <td>
+                <select name="account_type">
+                  <option value="savings" {{ 'selected' if a.account_type == 'savings' }}>savings</option>
+                  <option value="current" {{ 'selected' if a.account_type == 'current' }}>current</option>
+                  <option value="business" {{ 'selected' if a.account_type == 'business' }}>business</option>
+                </select>
+              </td>
+              <td>
+                <select name="status">
+                  <option value="active" {{ 'selected' if a.status == 'active' }}>active</option>
+                  <option value="inactive" {{ 'selected' if a.status == 'inactive' }}>inactive</option>
+                </select>
+              </td>
+              <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+              <td><button type="submit" class="btn-save">Save</button></td>
+            </form>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">No accounts found.</div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

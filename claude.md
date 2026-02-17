@@ -16,9 +16,13 @@ agent-local-env/
 │   └── realm-export.json             # Pre-configured realm, client, test user
 ├── webapp/
 │   ├── app.py                        # Flask app (port 9777)
+│   ├── db.py                         # DB helpers (psycopg2, accounts & payments CRUD)
 │   └── templates/
 │       ├── login.html
-│       └── dashboard.html
+│       ├── dashboard.html
+│       ├── upload.html               # CSV upload page (accounts & payments)
+│       ├── accounts.html             # Accounts search + inline edit
+│       └── payments.html             # Payments search + inline edit
 ├── mcp_server/
 │   └── login_verify_server.py        # MCP server (stdio transport)
 └── agent/
@@ -52,6 +56,16 @@ agent-local-env/
 - Credentials validated against Keycloak via `python-keycloak` (`KeycloakOpenID.token()` password grant)
 - Keycloak connection configured via env vars: `KEYCLOAK_SERVER_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`
 - Session-based auth using Flask's built-in `session`
+- `require_login` decorator protects all data routes
+- **Database module** (`webapp/db.py`): Uses `psycopg2` with `RealDictCursor`, connection-per-request
+- **CSV Upload** (`/upload`): Upload accounts or payments via CSV, row-level error handling
+- **Accounts page** (`/accounts`): Search by name/type/status, inline edit with Post/Redirect/Get
+- **Payments page** (`/payments`): Search by currency/amount range, inline edit with PRG
+- **REST API**: `/api/accounts` and `/api/payments` return JSON with search params
+- All new routes are session-protected via `@require_login`
+- Expected CSV formats:
+  - `accounts.csv`: columns `name`, `account_type`, `status`
+  - `payments.csv`: columns `amount`, `currency`, `debit_account`, `credit_account`
 
 ### 4. Login Verification MCP Server (`mcp_server/`)
 - Exposes tools via stdio transport, built with `mcp` Python SDK (`FastMCP`)

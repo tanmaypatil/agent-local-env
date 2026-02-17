@@ -124,6 +124,44 @@
       border: 1px solid #bbf7d0;
       color: #16a34a;
     }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 12px;
+    }
+
+    .link-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    .link-card {
+      display: block;
+      padding: 16px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #1e293b;
+      font-size: 14px;
+      font-weight: 500;
+      transition: border-color 0.15s;
+    }
+
+    .link-card:hover {
+      border-color: #3b82f6;
+    }
+
+    .link-card .link-label {
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 400;
+      display: block;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -153,6 +191,24 @@
       <div class="status-card">
         <div class="label">Session</div>
         <div class="value"><span class="badge badge-green">Active</span></div>
+      </div>
+    </div>
+
+    <div class="welcome-card">
+      <div class="section-title">Data Management</div>
+      <div class="link-grid">
+        <a href="/upload" class="link-card">
+          Upload CSV
+          <span class="link-label">Import accounts & payments</span>
+        </a>
+        <a href="/accounts" class="link-card">
+          Accounts
+          <span class="link-label">Search & edit accounts</span>
+        </a>
+        <a href="/payments" class="link-card">
+          Payments
+          <span class="link-label">Search & edit payments</span>
+        </a>
       </div>
     </div>
   </div>
