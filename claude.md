@@ -45,6 +45,7 @@ agent-local-env/
 - Data volume `pgdata` persists across restarts; use `docker-compose down -v` to reset
 
 ### 3. Flask Web Application (`webapp/`)
+- **UI theme: light** — Use a clean light theme (white cards, light gray backgrounds, dark text) for all pages
 - Login page at `http://localhost:9777/login.html`
 - Dashboard page at `/dashboard` (session-protected)
 - Root `/` redirects to login
